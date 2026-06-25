@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/normalize.js",
+      "src": "api/deliberate.js",
       "use": "@vercel/node"
     },
     {
@@ -24,8 +24,8 @@
   ],
   "routes": [
     {
-      "src": "/api/normalize",
-      "dest": "/api/normalize.js"
+      "src": "/api/deliberate",
+      "dest": "/api/deliberate.js"
     },
     {
       "src": "/(.*)",

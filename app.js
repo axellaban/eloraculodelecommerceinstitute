@@ -129,9 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- SETTINGS MANAGEMENT ---
 function initSettings() {
-    const apiKey = localStorage.getItem('oracle_api_key') || '';
-    document.getElementById('settings-api-key').value = apiKey;
-    
     const model = localStorage.getItem('oracle_model') || 'gemini-2.5-flash';
     document.getElementById('settings-model').value = model;
     
@@ -160,12 +157,10 @@ function closeSettings() {
 }
 
 function saveSettings() {
-    const apiKey = document.getElementById('settings-api-key').value.trim();
     const model = document.getElementById('settings-model').value;
     const theme = document.getElementById('settings-theme').value;
     const systemPrompt = document.getElementById('settings-system-prompt').value.trim();
     
-    localStorage.setItem('oracle_api_key', apiKey);
     localStorage.setItem('oracle_model', model);
     localStorage.setItem('oracle_theme', theme);
     localStorage.setItem('oracle_system_prompt', systemPrompt);
@@ -586,18 +581,6 @@ async function fetchSkillContent(skillPath, fallback) {
 async function executeChatRequest(query) {
     if (isGenerating) return;
     
-    const apiKey = localStorage.getItem('oracle_api_key') || '';
-    if (!apiKey) {
-        renderMessage('model', `⚠️ **Gemini API Key no configurada**
-        
-Para deliberar con el Oráculo de los 7, necesitas configurar tu propia clave.
-        
-1. Abre los **[Ajustes del Oráculo]** en la barra lateral.
-2. Pega tu API Key de Gemini (puedes conseguirla gratis en Google AI Studio).
-3. Guarda los cambios.`, true, true);
-        return;
-    }
-    
     // Toggle active inputs
     isGenerating = true;
     document.getElementById('btn-send').style.display = 'none';
@@ -625,58 +608,40 @@ Para deliberar con el Oráculo de los 7, necesitas configurar tu propia clave.
     updateHUDStep(2, 'pending');
     INVESTORS_LIST.forEach(inv => updateHUDBadge(inv.id, 'pending'));
     
+    // Start progress HUD step simulation (staggering) to give active feedback
+    let simulatedHUDInterval = simulateHUDProgress();
+    
     abortController = new AbortController();
     
     try {
-        // --- STEP 1: CAPA 0 (Normalizador) ---
-        const ticker = extractTicker(query);
-        const portfolio = extractPortfolioContext(query);
+        const response = await fetch('/api/deliberate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query }),
+            signal: abortController.signal
+        });
         
-        const capa0State = await runCapa0Normalizer(ticker, portfolio, apiKey, abortController.signal);
+        clearInterval(simulatedHUDInterval);
+        
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json(); // { synthesis, capa0, subagents }
+        
+        // Mark all steps as complete in HUD
         updateHUDStep(0, 'completed');
-        
-        // --- STEP 2: FAN-OUT (Run 7 subagents in parallel) ---
-        updateHUDStep(1, 'active');
-        
-        const subagentPromises = INVESTORS_LIST.map(async (inv) => {
-            updateHUDBadge(inv.id, 'analyzing');
-            try {
-                const skillContent = await fetchSkillContent(inv.skillPath, inv.fallbackPrompt);
-                const verdictJson = await runSubagentAnalysis(inv.name, skillContent, capa0State, apiKey, abortController.signal);
-                updateHUDBadge(inv.id, 'completed');
-                return { id: inv.id, result: verdictJson };
-            } catch (err) {
-                console.error(`Subagent ${inv.name} failed:`, err);
-                updateHUDBadge(inv.id, 'error');
-                return { id: inv.id, result: { applicable: false, verdict: "Error", rationale: `Error al ejecutar: ${err.message}`, watch_metric: "Conexión" } };
-            }
-        });
-        
-        const subagentsResultsArray = await Promise.all(subagentPromises);
-        const subagentsResults = {};
-        subagentsResultsArray.forEach(item => {
-            subagentsResults[item.id] = item.result;
-        });
-        
         updateHUDStep(1, 'completed');
-        
-        // --- STEP 3: FAN-IN (Synthesis) ---
-        updateHUDStep(2, 'active');
-        
-        const pipelineData = {
-            capa0: capa0State,
-            subagents: subagentsResults
-        };
-        
-        const orquestadoraSkill = await fetchSkillContent('skills/council-of-7-investors/SKILL.md', DEFAULT_ORCHESTRATOR_PROMPT);
-        const synthesisContent = await runSynthesis(orquestadoraSkill, pipelineData, query, apiKey, abortController.signal);
-        
         updateHUDStep(2, 'completed');
+        INVESTORS_LIST.forEach(inv => updateHUDBadge(inv.id, 'completed'));
         
-        // Hide HUD after small delay for visual feedback
+        // Hide HUD after small delay
         setTimeout(() => {
             hud.style.display = 'none';
-        }, 800);
+        }, 600);
         
         // Save history and update UI
         let chatMessages = [];
@@ -686,11 +651,16 @@ Para deliberar con el Oráculo de los 7, necesitas configurar tu propia clave.
         }
         
         chatMessages.push({ role: 'user', content: query });
-        chatMessages.push({ role: 'model', content: synthesisContent });
+        chatMessages.push({ role: 'model', content: data.synthesis });
+        
+        const pipelineData = {
+            capa0: data.capa0,
+            subagents: data.subagents
+        };
         
         saveActiveChatToStorage(chatMessages, pipelineData);
         
-        // Refresh feed to set last AI response correctly
+        // Refresh feed
         const feed = document.getElementById('chat-feed');
         feed.innerHTML = '';
         chatMessages.forEach((msg, idx) => {
@@ -704,7 +674,9 @@ Para deliberar con el Oráculo de los 7, necesitas configurar tu propia clave.
         document.getElementById('btn-open-audit').style.display = 'flex';
         
     } catch (error) {
+        clearInterval(simulatedHUDInterval);
         hud.style.display = 'none';
+        
         if (error.name === 'AbortError') {
             renderMessage('model', '*(La sesión del consejo fue interrumpida por el usuario)*', true, true);
         } else {
@@ -714,7 +686,7 @@ Para deliberar con el Oráculo de los 7, necesitas configurar tu propia clave.
 Ocurrió una falla en la ejecución del consejo de inversores.
 
 * **Detalle del error**: \`${error.message}\`
-* Verifica tu **Gemini API Key** en la barra lateral.`, true, true);
+* Asegúrate de configurar las variables de entorno (\`ANTHROPIC_API_KEY\`, \`SERPER_API_KEY\`, etc.) en tu despliegue de Vercel o en tu archivo \`.env.local\`.`, true, true);
         }
     } finally {
         isGenerating = false;
@@ -724,6 +696,40 @@ Ocurrió una falla en la ejecución del consejo de inversores.
         document.getElementById('chat-textarea').disabled = false;
         document.getElementById('chat-textarea').focus();
     }
+}
+
+function simulateHUDProgress() {
+    let elapsed = 0;
+    
+    const interval = setInterval(() => {
+        elapsed += 0.5;
+        
+        if (elapsed === 1.5) {
+            updateHUDStep(0, 'completed');
+            updateHUDStep(1, 'active');
+        }
+        
+        // Stagger subagent analysis badges
+        if (elapsed >= 2.0 && elapsed < 6.0) {
+            const index = Math.floor((elapsed - 2.0) / 0.5);
+            if (index < INVESTORS_LIST.length) {
+                // Set current to analyzing
+                updateHUDBadge(INVESTORS_LIST[index].id, 'analyzing');
+                // Set previous to completed
+                if (index > 0) {
+                    updateHUDBadge(INVESTORS_LIST[index - 1].id, 'completed');
+                }
+            }
+        }
+        
+        if (elapsed === 6.0) {
+            updateHUDBadge(INVESTORS_LIST[INVESTORS_LIST.length - 1].id, 'completed');
+            updateHUDStep(1, 'completed');
+            updateHUDStep(2, 'active');
+        }
+    }, 500);
+    
+    return interval;
 }
 
 // --- SUB-TASKS EXECUTION ---
