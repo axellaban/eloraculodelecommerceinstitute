@@ -1,4 +1,5 @@
 // App JavaScript for "El Oráculo de los 7 (Value Investors)"
+// Integrates the mockup transitions, light design, and the agentic pipeline
 
 // --- STATE MANAGEMENT ---
 let activeChatId = null;
@@ -9,7 +10,7 @@ let currentPipelineData = null; // Stored Capa 0 and subagents JSON outputs
 const DEFAULT_ORCHESTRATOR_PROMPT = `Eres el Orquestador del "Council of 7 Investors". Tu trabajo es tomar un activo financiero o cartera, analizar la información unificada de la Capa 0 (datos de mercado y perfil) junto con los veredictos individuales de 7 inversores expertos, y generar una síntesis consolidada, analítica y accionable.
 
 Sigue rigurosamente estas pautas para la Síntesis:
-1. Identifica el nivel de convergencia (ej. "5 de 7 coinciden en esperar").
+1. Identifica el nivel de convergencia (ej. "5 de 7 coinciden en comprar").
 2. Nombra y profundiza en las discrepancias reales y argumentadas entre expertos (por qué tensionan sus modelos, ej. Graham vs. Marks).
 3. Declara los puntos ciegos que ningún framework cubre para el activo analizado.
 4. Genera un veredicto consolidado claro con sugerencia de posicionamiento o rebalanceo.
@@ -114,6 +115,20 @@ Debes devolver estrictamente un objeto JSON con este formato:
     }
 ];
 
+// --- DOM ELEMENTS ---
+const getDOMElements = () => ({
+    mainInput: document.getElementById('query-input'),
+    chatInput: document.getElementById('chat-input'),
+    chatWindow: document.getElementById('chat-window'),
+    mainInterface: document.getElementById('main-interface'),
+    chatInterface: document.getElementById('chat-interface'),
+    sidebar: document.getElementById('sidebar'),
+    btnSend: document.getElementById('btn-send'),
+    btnStop: document.getElementById('btn-stop'),
+    btnOpenAudit: document.getElementById('btn-open-audit'),
+    auditDrawer: document.getElementById('audit-drawer')
+});
+
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     initSettings();
@@ -122,12 +137,12 @@ document.addEventListener('DOMContentLoaded', () => {
     setupTextareaAutoResize();
     setupAccordionListener();
     
-    // Welcome input focus
-    const welcomeInput = document.getElementById('welcome-input');
-    if (welcomeInput) welcomeInput.focus();
+    // Focus welcome input
+    const els = getDOMElements();
+    if (els.mainInput) els.mainInput.focus();
 });
 
-// --- SETTINGS MANAGEMENT ---
+// --- SETTINGS ---
 function initSettings() {
     const model = localStorage.getItem('oracle_model') || 'gemini-2.5-flash';
     document.getElementById('settings-model').value = model;
@@ -135,17 +150,17 @@ function initSettings() {
     const systemPrompt = localStorage.getItem('oracle_system_prompt') || DEFAULT_ORCHESTRATOR_PROMPT;
     document.getElementById('settings-system-prompt').value = systemPrompt;
 
-    const theme = localStorage.getItem('oracle_theme') || 'theme-dark';
+    const theme = localStorage.getItem('oracle_theme') || 'theme-light';
     document.getElementById('settings-theme').value = theme;
 }
 
 function initTheme() {
-    const theme = localStorage.getItem('oracle_theme') || 'theme-dark';
-    document.body.className = theme;
+    const theme = localStorage.getItem('oracle_theme') || 'theme-light';
+    document.body.className = `flex flex-col items-center justify-center text-gray-800 relative ${theme}`;
 }
 
 function changeTheme(themeName) {
-    document.body.className = themeName;
+    document.body.className = `flex flex-col items-center justify-center text-gray-800 relative ${themeName}`;
 }
 
 function openSettings() {
@@ -170,29 +185,11 @@ function saveSettings() {
     showStatusNotification("Ajustes guardados correctamente");
 }
 
-function togglePasswordVisibility(id) {
-    const input = document.getElementById(id);
-    const eye = document.getElementById(id + '-eye');
-    if (input.type === 'password') {
-        input.type = 'text';
-        eye.classList.remove('fa-eye');
-        eye.classList.add('fa-eye-slash');
-    } else {
-        input.type = 'password';
-        eye.classList.remove('fa-eye-slash');
-        eye.classList.add('fa-eye');
-    }
-}
-
-// --- CONVERSATION & LOCALSTORAGE HISTORY ---
+// --- CONVERSATIONS HISTORY ---
 function getConversations() {
     const raw = localStorage.getItem('oracle_investor_chats');
     if (!raw) return {};
-    try {
-        return JSON.parse(raw);
-    } catch (e) {
-        return {};
-    }
+    try { return JSON.parse(raw); } catch (e) { return {}; }
 }
 
 function saveConversations(conversations) {
@@ -202,8 +199,9 @@ function saveConversations(conversations) {
 function loadConversationsList() {
     const conversations = getConversations();
     const historyList = document.getElementById('history-list');
-    historyList.innerHTML = '';
+    if (!historyList) return;
     
+    historyList.innerHTML = '';
     const keys = Object.keys(conversations).sort((a, b) => b - a);
     
     if (keys.length === 0) {
@@ -229,24 +227,7 @@ function loadConversationsList() {
 
 function startNewChat() {
     if (isGenerating) return;
-    activeChatId = null;
-    currentPipelineData = null;
-    
-    document.getElementById('view-chat').style.display = 'none';
-    document.getElementById('view-welcome').style.display = 'flex';
-    document.getElementById('btn-open-audit').style.display = 'none';
-    document.getElementById('audit-panel').style.display = 'none';
-    
-    document.getElementById('welcome-input').value = '';
-    document.getElementById('chat-textarea').value = '';
-    document.getElementById('chat-feed').innerHTML = '';
-    
-    loadConversationsList();
-    document.getElementById('sidebar').classList.remove('open');
-    
-    setTimeout(() => {
-        document.getElementById('welcome-input').focus();
-    }, 50);
+    resetUI();
 }
 
 function selectConversation(id) {
@@ -257,13 +238,18 @@ function selectConversation(id) {
     const chat = conversations[id];
     if (!chat) return;
     
-    document.getElementById('view-welcome').style.display = 'none';
-    document.getElementById('view-chat').style.display = 'flex';
-    document.getElementById('chat-header-title').innerText = chat.title;
+    const els = getDOMElements();
     
-    // Load feed
-    const feed = document.getElementById('chat-feed');
-    feed.innerHTML = '';
+    // Smooth transition to chat interface directly
+    els.mainInterface.classList.add('hidden-chat');
+    els.chatInterface.classList.remove('hidden-chat');
+    els.chatInterface.classList.add('fade-enter-active');
+    
+    // Set title in header
+    els.chatInterface.querySelector('h2').innerText = chat.title;
+    
+    // Load messages
+    els.chatWindow.innerHTML = '';
     chat.messages.forEach((msg, idx) => {
         const isLastAI = (msg.role === 'model' && idx === chat.messages.length - 1);
         renderMessage(msg.role, msg.content, false, isLastAI);
@@ -273,16 +259,15 @@ function selectConversation(id) {
     if (chat.pipelineData) {
         currentPipelineData = chat.pipelineData;
         populateAuditPanel(chat.pipelineData);
-        document.getElementById('btn-open-audit').style.display = 'flex';
+        els.btnOpenAudit.style.display = 'flex';
     } else {
         currentPipelineData = null;
-        document.getElementById('btn-open-audit').style.display = 'none';
-        document.getElementById('audit-panel').style.display = 'none';
+        els.btnOpenAudit.style.display = 'none';
+        els.auditDrawer.style.display = 'none';
     }
     
     loadConversationsList();
     scrollToBottom();
-    document.getElementById('sidebar').classList.remove('open');
 }
 
 function deleteConversation(event, id) {
@@ -295,7 +280,7 @@ function deleteConversation(event, id) {
         saveConversations(conversations);
         
         if (activeChatId == id) {
-            startNewChat();
+            resetUI();
         } else {
             loadConversationsList();
         }
@@ -306,7 +291,7 @@ function clearAllHistory() {
     if (isGenerating) return;
     if (confirm("¿Borrar todo el historial de análisis?")) {
         saveConversations({});
-        startNewChat();
+        resetUI();
     }
 }
 
@@ -325,7 +310,6 @@ function saveActiveChatToStorage(messages, pipelineData = null) {
         }
     }
     
-    // Maintain pipelineData if not provided on follow-ups
     const existingChat = conversations[activeChatId];
     const savedPipelineData = pipelineData || (existingChat ? existingChat.pipelineData : null);
     
@@ -337,78 +321,75 @@ function saveActiveChatToStorage(messages, pipelineData = null) {
     
     saveConversations(conversations);
     loadConversationsList();
-    document.getElementById('chat-header-title').innerText = title;
+    
+    // Update header title in UI
+    const els = getDOMElements();
+    els.chatInterface.querySelector('h2').innerText = title;
 }
 
-// --- RENDER FUNCTIONS ---
+// --- MESSAGE RENDERING ---
 function renderMessage(role, content, animate = true, isLastAI = false) {
-    const feed = document.getElementById('chat-feed');
+    const els = getDOMElements();
     const container = document.createElement('div');
-    container.className = `msg-container ${role}`;
+    container.className = `w-full flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
     
-    if (!animate) {
-        container.style.animation = 'none';
-    }
-    
-    const avatar = role === 'user' ? 'Tú' : 'O';
-    const avatarClass = role === 'user' ? 'user' : 'ai';
     const formattedContent = role === 'user' ? escapeHTML(content) : marked.parse(content);
     
-    if (role === 'model') {
-        const avatarDiv = document.createElement('div');
-        avatarDiv.className = `msg-avatar ${avatarClass}`;
-        avatarDiv.innerText = avatar;
-        container.appendChild(avatarDiv);
-    }
-    
-    const bodyDiv = document.createElement('div');
-    bodyDiv.className = 'msg-body';
-    
-    const bubbleDiv = document.createElement('div');
-    bubbleDiv.className = 'msg-bubble';
-    bubbleDiv.innerHTML = formattedContent;
-    bodyDiv.appendChild(bubbleDiv);
-    
-    if (role === 'model') {
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'msg-actions';
+    if (role === 'user') {
+        const bubble = document.createElement('div');
+        bubble.className = `message-bubble p-4 user-msg self-end ml-auto flex flex-col ${animate ? 'msg-enter' : ''}`;
+        bubble.innerHTML = `<span class="text-xs font-semibold mb-1 opacity-75 block">Tú</span><p>${formattedContent}</p>`;
+        container.appendChild(bubble);
+    } else {
+        const bubble = document.createElement('div');
+        bubble.className = `message-bubble p-4 oracle-msg self-start flex gap-3 w-full ${animate ? 'msg-enter' : ''}`;
         
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'msg-action-btn';
-        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copiar';
-        copyBtn.addEventListener('click', () => copyMessageText(copyBtn, content));
-        actionsDiv.appendChild(copyBtn);
-        
+        let actionsHtml = '';
         if (isLastAI) {
-            const regenBtn = document.createElement('button');
-            regenBtn.className = 'msg-action-btn';
-            regenBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Volver a deliberar';
-            regenBtn.addEventListener('click', () => regenerateLastResponse());
-            actionsDiv.appendChild(regenBtn);
+            actionsHtml = `
+                <div class="msg-actions">
+                    <button class="msg-action-btn" id="copy-btn-msg"><i class="fa-solid fa-copy"></i> Copiar</button>
+                    <button class="msg-action-btn" id="regen-btn-msg"><i class="fa-solid fa-arrows-rotate"></i> Volver a deliberar</button>
+                </div>
+            `;
+        } else {
+            actionsHtml = `
+                <div class="msg-actions">
+                    <button class="msg-action-btn" id="copy-btn-msg"><i class="fa-solid fa-copy"></i> Copiar</button>
+                </div>
+            `;
         }
         
-        bodyDiv.appendChild(actionsDiv);
+        bubble.innerHTML = `
+            <div class="w-8 h-8 rounded-full bg-blue-50 flex-shrink-0 flex items-center justify-center border border-blue-100 mt-1">
+                <i class="fa-solid fa-robot text-blue-500 text-xs"></i>
+            </div>
+            <div class="flex-grow min-w-0">
+                <span class="text-sm font-bold text-gray-700 mb-1 block">Oráculo</span>
+                <div class="text-gray-600 leading-relaxed text-[14.5px]">${formattedContent}</div>
+                ${actionsHtml}
+            </div>
+        `;
+        
+        // Listeners for copy and regenerate
+        const copyBtn = bubble.querySelector('#copy-btn-msg');
+        if (copyBtn) copyBtn.addEventListener('click', () => copyMessageText(copyBtn, content));
+        const regenBtn = bubble.querySelector('#regen-btn-msg');
+        if (regenBtn) regenBtn.addEventListener('click', () => regenerateLastResponse());
+        
+        container.appendChild(bubble);
     }
     
-    container.appendChild(bodyDiv);
-    
-    if (role === 'user') {
-        const avatarDiv = document.createElement('div');
-        avatarDiv.className = `msg-avatar ${avatarClass}`;
-        avatarDiv.innerText = avatar;
-        container.appendChild(avatarDiv);
-    }
-    
-    feed.appendChild(container);
+    els.chatWindow.appendChild(container);
     scrollToBottom();
 }
 
 function copyMessageText(button, text) {
     navigator.clipboard.writeText(text).then(() => {
         const original = button.innerHTML;
-        button.innerHTML = '<i class="fa-solid fa-check"></i> Copiado';
+        button.innerHTML = '<i class="fa-solid fa-check text-green-500"></i> Copiado';
         setTimeout(() => button.innerHTML = original, 2000);
-    }).catch(err => {
+    }).catch(() => {
         const textArea = document.createElement("textarea");
         textArea.value = text;
         document.body.appendChild(textArea);
@@ -416,7 +397,7 @@ function copyMessageText(button, text) {
         document.execCommand('copy');
         document.body.removeChild(textArea);
         const original = button.innerHTML;
-        button.innerHTML = '<i class="fa-solid fa-check"></i> Copiado';
+        button.innerHTML = '<i class="fa-solid fa-check text-green-500"></i> Copiado';
         setTimeout(() => button.innerHTML = original, 2000);
     });
 }
@@ -434,8 +415,8 @@ function escapeHTML(str) {
 }
 
 function scrollToBottom() {
-    const feed = document.getElementById('chat-feed');
-    if (feed) feed.scrollTop = feed.scrollHeight;
+    const els = getDOMElements();
+    if (els.chatWindow) els.chatWindow.scrollTop = els.chatWindow.scrollHeight;
 }
 
 function showStatusNotification(message) {
@@ -447,13 +428,13 @@ function showStatusNotification(message) {
         position: 'fixed',
         bottom: '24px',
         right: '24px',
-        backgroundColor: 'var(--bg-panel)',
-        color: 'var(--text-primary)',
-        border: '1px solid var(--border-color)',
+        backgroundColor: '#ffffff',
+        color: '#1f2937',
+        border: '1px solid #f3f4f6',
         borderRadius: 'var(--border-radius-md)',
         padding: '12px 20px',
-        fontSize: '14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+        fontSize: '13.5px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
         zIndex: '9999',
         fontFamily: 'var(--font-sans)',
         fontWeight: '500',
@@ -467,10 +448,8 @@ function showStatusNotification(message) {
     }, 2000);
 }
 
-// --- PIPELINE STEP HUD ---
+// --- PIPELINE PROGRESS HUD ---
 function updateHUDStep(stepIndex, status) {
-    // stepIndex: 0 (Capa 0), 1 (Subagentes), 2 (Síntesis)
-    // status: 'pending', 'active', 'completed', 'error'
     const stepEl = document.getElementById(`hud-step-${stepIndex}`);
     if (!stepEl) return;
     
@@ -479,29 +458,32 @@ function updateHUDStep(stepIndex, status) {
     
     if (status === 'active') {
         iconEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        stepEl.style.color = '#2563eb';
     } else if (status === 'completed') {
-        iconEl.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+        iconEl.innerHTML = '<i class="fa-solid fa-circle-check text-green-500"></i>';
+        stepEl.style.color = '#10b981';
     } else if (status === 'error') {
-        iconEl.innerHTML = '<i class="fa-solid fa-circle-exclamation text-danger"></i>';
+        iconEl.innerHTML = '<i class="fa-solid fa-circle-exclamation text-red-500"></i>';
+        stepEl.style.color = '#ef4444';
     } else {
         iconEl.innerHTML = '<i class="fa-solid fa-clock"></i>';
+        stepEl.style.color = '#6b7280';
     }
 }
 
 function updateHUDBadge(agentId, status) {
-    // status: 'pending', 'analyzing', 'completed', 'error'
     const badge = document.getElementById(`badge-${agentId}`);
     if (!badge) return;
     badge.className = `badge-subagent ${status}`;
 }
 
-// --- AUDIT PANEL DRAWER ---
+// --- AUDIT DRAWER ---
 function toggleAuditPanel() {
-    const panel = document.getElementById('audit-panel');
-    if (panel.style.display === 'none') {
-        panel.style.display = 'flex';
+    const els = getDOMElements();
+    if (els.auditDrawer.style.display === 'none') {
+        els.auditDrawer.style.display = 'flex';
     } else {
-        panel.style.display = 'none';
+        els.auditDrawer.style.display = 'none';
     }
 }
 
@@ -517,10 +499,8 @@ function setupAccordionListener() {
 function populateAuditPanel(pipelineData) {
     if (!pipelineData) return;
     
-    // 1. Capa 0 JSON
     document.getElementById('audit-capa0-json').innerText = JSON.stringify(pipelineData.capa0, null, 2);
     
-    // 2. Accordion subagents
     const container = document.getElementById('audit-accordion');
     container.innerHTML = '';
     
@@ -565,85 +545,59 @@ function populateAuditPanel(pipelineData) {
     });
 }
 
-// --- UTILITY FETCH SKILLS (Progressive Disclosure) ---
-async function fetchSkillContent(skillPath, fallback) {
-    try {
-        const response = await fetch(skillPath);
-        if (!response.ok) throw new Error();
-        return await response.text();
-    } catch (e) {
-        // Fallback if local file:// blocks fetch or not found
-        return fallback;
-    }
-}
-
 // --- CORE AGENTIC PIPELINE (Map-Reduce) ---
 async function executeChatRequest(query) {
     if (isGenerating) return;
     
-    // Toggle active inputs
+    const els = getDOMElements();
+    
     isGenerating = true;
-    document.getElementById('btn-send').style.display = 'none';
-    document.getElementById('btn-stop').style.display = 'flex';
-    document.getElementById('chat-textarea').disabled = true;
+    els.btnSend.style.display = 'none';
+    els.btnStop.style.display = 'flex';
+    els.chatInput.disabled = true;
     
-    // Clear feed if first query of welcome view
-    const welcomeView = document.getElementById('view-welcome');
-    if (welcomeView.style.display !== 'none') {
-        welcomeView.style.display = 'none';
-        document.getElementById('view-chat').style.display = 'flex';
-        document.getElementById('chat-feed').innerHTML = '';
-    }
-    
-    // Add user message to UI
+    // Add user query message
     renderMessage('user', query, true, false);
     
     // Show Pipeline HUD
     const hud = document.getElementById('pipeline-hud');
     hud.style.display = 'flex';
     
-    // Reset HUD steps
+    // Reset steps
     updateHUDStep(0, 'active');
     updateHUDStep(1, 'pending');
     updateHUDStep(2, 'pending');
     INVESTORS_LIST.forEach(inv => updateHUDBadge(inv.id, 'pending'));
     
-    // Start progress HUD step simulation (staggering) to give active feedback
-    let simulatedHUDInterval = simulateHUDProgress();
-    
+    let simulatedInterval = simulateHUDProgress();
     abortController = new AbortController();
     
     try {
         const response = await fetch('/api/deliberate', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query }),
             signal: abortController.signal
         });
         
-        clearInterval(simulatedHUDInterval);
+        clearInterval(simulatedInterval);
         
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
             throw new Error(errData.error || `HTTP error! status: ${response.status}`);
         }
         
-        const data = await response.json(); // { synthesis, capa0, subagents }
+        const data = await response.json();
         
-        // Mark all steps as complete in HUD
+        // Complete HUD steps
         updateHUDStep(0, 'completed');
         updateHUDStep(1, 'completed');
         updateHUDStep(2, 'completed');
         INVESTORS_LIST.forEach(inv => updateHUDBadge(inv.id, 'completed'));
         
-        // Hide HUD after small delay
-        setTimeout(() => {
-            hud.style.display = 'none';
-        }, 600);
+        setTimeout(() => { hud.style.display = 'none'; }, 600);
         
-        // Save history and update UI
+        // Save history
         let chatMessages = [];
         if (activeChatId) {
             const conversations = getConversations();
@@ -661,20 +615,19 @@ async function executeChatRequest(query) {
         saveActiveChatToStorage(chatMessages, pipelineData);
         
         // Refresh feed
-        const feed = document.getElementById('chat-feed');
-        feed.innerHTML = '';
+        els.chatWindow.innerHTML = '';
         chatMessages.forEach((msg, idx) => {
             const isLastAI = (msg.role === 'model' && idx === chatMessages.length - 1);
             renderMessage(msg.role, msg.content, false, isLastAI);
         });
         
-        // Update audit panel drawer
+        // Populate audit
         currentPipelineData = pipelineData;
         populateAuditPanel(pipelineData);
-        document.getElementById('btn-open-audit').style.display = 'flex';
+        els.btnOpenAudit.style.display = 'flex';
         
     } catch (error) {
-        clearInterval(simulatedHUDInterval);
+        clearInterval(simulatedInterval);
         hud.style.display = 'none';
         
         if (error.name === 'AbortError') {
@@ -686,21 +639,20 @@ async function executeChatRequest(query) {
 Ocurrió una falla en la ejecución del consejo de inversores.
 
 * **Detalle del error**: \`${error.message}\`
-* Asegúrate de configurar las variables de entorno (\`ANTHROPIC_API_KEY\`, \`SERPER_API_KEY\`, etc.) en tu despliegue de Vercel o en tu archivo \`.env.local\`.`, true, true);
+* Asegúrate de configurar las variables de entorno (\`ANTHROPIC_API_KEY\`, \`SERPER_API_KEY\`, etc.) en tu panel de Vercel.`, true, true);
         }
     } finally {
         isGenerating = false;
         abortController = null;
-        document.getElementById('btn-stop').style.display = 'none';
-        document.getElementById('btn-send').style.display = 'flex';
-        document.getElementById('chat-textarea').disabled = false;
-        document.getElementById('chat-textarea').focus();
+        els.btnStop.style.display = 'none';
+        els.btnSend.style.display = 'flex';
+        els.chatInput.disabled = false;
+        els.chatInput.focus();
     }
 }
 
 function simulateHUDProgress() {
     let elapsed = 0;
-    
     const interval = setInterval(() => {
         elapsed += 0.5;
         
@@ -709,13 +661,10 @@ function simulateHUDProgress() {
             updateHUDStep(1, 'active');
         }
         
-        // Stagger subagent analysis badges
         if (elapsed >= 2.0 && elapsed < 6.0) {
             const index = Math.floor((elapsed - 2.0) / 0.5);
             if (index < INVESTORS_LIST.length) {
-                // Set current to analyzing
                 updateHUDBadge(INVESTORS_LIST[index].id, 'analyzing');
-                // Set previous to completed
                 if (index > 0) {
                     updateHUDBadge(INVESTORS_LIST[index - 1].id, 'completed');
                 }
@@ -728,174 +677,114 @@ function simulateHUDProgress() {
             updateHUDStep(2, 'active');
         }
     }, 500);
-    
     return interval;
 }
 
-// --- SUB-TASKS EXECUTION ---
-
-function extractTicker(query) {
-    // Regex looking for tickers, usually capitalized 2-5 letter strings, or common words
-    const cleaned = query.toUpperCase();
-    const commonTickers = ['AAPL', 'MSFT', 'TSLA', 'AMZN', 'YPF', 'BTC', 'ETH', 'KO', 'PEP', 'GGAL', 'ALUA', 'MELI', 'BABA', 'NVDA', 'SPY', 'QQQ'];
-    
-    for (const tick of commonTickers) {
-        if (cleaned.includes(tick)) return tick;
-    }
-    
-    // Fallback regex match for capitalized words
-    const matches = query.match(/[A-Z]{2,5}/g);
-    if (matches && matches.length > 0) return matches[0];
-    
-    // Default asset if not detected
-    return "ACTIVO INDIVIDUAL";
+// --- SUBMITS & TRANSITIONS ---
+function handleMainEnter(e) {
+    if (e.key === 'Enter') startChat();
 }
 
-function extractPortfolioContext(query) {
-    if (query.toLowerCase().includes("cartera") || query.toLowerCase().includes("portafolio")) {
-        // Simple extraction or passing complete query context
-        return query;
+function handleChatEnter(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
     }
-    return "No especificado (analizando activo de forma aislada).";
 }
 
-// Capa 0 Normalizer - Call endpoint or fallback to Gemini 2.5 Flash Scrapper
-async function runCapa0Normalizer(ticker, portfolio, apiKey, signal) {
-    const model = localStorage.getItem('oracle_model') || 'gemini-2.5-flash';
+function startChat() {
+    const els = getDOMElements();
+    if (els.mainInput.value.trim() === "") {
+        els.mainInput.focus();
+        return;
+    }
     
-    // Let's first check if serverless endpoint is available
-    try {
-        const response = await fetch(`/api/normalize?ticker=${ticker}`, { signal });
-        if (response.ok) {
-            const data = await response.json();
-            // Merge portfolio context into state
-            data.portfolio_context = portfolio;
-            return data;
+    // Transition animation
+    els.mainInterface.style.opacity = '0';
+    els.mainInterface.style.transform = 'translate(-50%, -60%)';
+    
+    setTimeout(() => {
+        els.mainInterface.classList.add('hidden-chat');
+        els.chatInterface.classList.remove('hidden-chat');
+        
+        setTimeout(() => {
+            els.chatInterface.classList.add('fade-enter-active');
+            
+            const question = els.mainInput.value;
+            activeChatId = null; // New chat
+            executeChatRequest(question);
+        }, 50);
+    }, 400);
+}
+
+function resetUI() {
+    const els = getDOMElements();
+    els.chatInterface.classList.remove('fade-enter-active');
+    els.chatInterface.style.opacity = '0';
+    
+    setTimeout(() => {
+        els.chatInterface.classList.add('hidden-chat');
+        els.chatInterface.style.opacity = '1'; // Reset
+        
+        els.mainInterface.classList.remove('hidden-chat');
+        void els.mainInterface.offsetWidth; // Force reflow
+        
+        els.mainInterface.style.opacity = '1';
+        els.mainInterface.style.transform = 'translate(-50%, -50%)';
+        
+        els.chatWindow.innerHTML = '';
+        els.mainInput.value = '';
+        els.chatInput.value = '';
+        els.mainInput.focus();
+        
+        activeChatId = null;
+        currentPipelineData = null;
+        els.btnOpenAudit.style.display = 'none';
+        els.auditDrawer.style.display = 'none';
+        
+        loadConversationsList();
+    }, 300);
+}
+
+function randomQuestion() {
+    const els = getDOMElements();
+    const questions = [
+        "¿Qué diría Benjamin Graham sobre la compra de Bitcoin (BTC)?",
+        "Analizá YPF a largo plazo con la óptica de Warren Buffett.",
+        "Evaluá la acción de Apple (AAPL) para un perfil conservador.",
+        "¿Cómo estructuraría Seth Klarman una cartera con 100% de acciones?"
+    ];
+    const random = questions[Math.floor(Math.random() * questions.length)];
+    
+    els.mainInput.value = '';
+    let i = 0;
+    
+    const typeWriter = setInterval(() => {
+        if (i < random.length) {
+            els.mainInput.value += random.charAt(i);
+            i++;
+        } else {
+            clearInterval(typeWriter);
+            setTimeout(startChat, 500);
         }
-    } catch (e) {
-        // Fallback to Gemini Scraper
-    }
-    
-    // Call Gemini as scrapper/interpolator
-    const systemPrompt = `Actúas como el Normalizador de la Capa 0 del consejo de inversores. Tu única misión es proveer datos financieros determinísticos actuales sobre el activo solicitado.
-Debes devolver estrictamente un objeto JSON con este formato y nada más (sin bloques de comentarios, markdown, etc.):
-{
-  "asset": "${ticker}",
-  "price": "precio_actual_usd",
-  "date": "${new Date().toLocaleDateString()}",
-  "ath": "maximo_historico_usd",
-  "drawdown_actual": "%_caida_actual_desde_ath",
-  "drawdown_historico_max": "%_maxima_caida_historica",
-  "regime": "Crecimiento rápido / Estable / Cíclica / Especulativa / Reestructuración",
-  "portfolio_context": "${portfolio}"
-}`;
-
-    const payload = {
-        contents: [{ role: 'user', parts: [{ text: `Entrega el estado financiero de Capa 0 para el ticker ${ticker}.` }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] }
-    };
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal
-    });
-    
-    if (!response.ok) throw new Error("Capa 0 Normalizer API Error");
-    const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    // Clean potential markdown blocks
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanText);
+    }, 25);
 }
 
-// Subagent execution call
-async function runSubagentAnalysis(name, skillContent, capa0State, apiKey, signal) {
-    const model = localStorage.getItem('oracle_model') || 'gemini-2.5-flash';
-    
-    const systemPrompt = `Tu instrucción base de rol es:\n${skillContent}\n\nREGLA DE SALIDA IMPERATIVA:
-Debes evaluar la Capa 0 e ingresar tu veredicto en formato JSON válido. No escribas prosa antes ni después del JSON. Devuelve exactamente este esquema:
-{
-  "applicable": true/false,
-  "verdict": "Comprar" | "No comprar" | "Esperar" | "Reducir" | "No aplica",
-  "rationale": "Análisis resumido en 3-4 líneas aplicando exactamente tu framework y fórmulas",
-  "watch_metric": "La métrica específica de tu modelo mental que monitorearías"
-}`;
-
-    const payload = {
-        contents: [{ role: 'user', parts: [{ text: `Evalúa el siguiente estado de Capa 0:\n${JSON.stringify(capa0State, null, 2)}` }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] }
-    };
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal
-    });
-    
-    if (!response.ok) throw new Error(`Subagent ${name} API Error`);
-    const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanText);
-}
-
-// Synthesis reduction step
-async function runSynthesis(orquestadoraSkill, pipelineData, originalQuery, apiKey, signal) {
-    // For Synthesis we prefer using gemini-2.5-pro if selected, otherwise flash
-    let model = localStorage.getItem('oracle_model') || 'gemini-2.5-flash';
-    
-    const payload = {
-        contents: [{
-            role: 'user', 
-            parts: [{ 
-                text: `El usuario pregunta: "${originalQuery}"
-                
-Aquí están los datos estructurados del pipeline agéntico:
-${JSON.stringify(pipelineData, null, 2)}` 
-            }] 
-        }],
-        systemInstruction: { parts: [{ text: orquestadoraSkill }] }
-    };
-    
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal
-    });
-    
-    if (!response.ok) throw new Error("Synthesis (Fan-in) API Error");
-    const result = await response.json();
-    return result.candidates?.[0]?.content?.parts?.[0]?.text;
-}
-
-// --- REGENERATE & SUBMITS ---
-function submitWelcomeQuery() {
-    const input = document.getElementById('welcome-input');
-    const query = input.value.trim();
-    if (!query) return;
-    executeChatRequest(query);
-}
-
-function submitChatQuery() {
+function sendChatMessage() {
     if (isGenerating) return;
-    const input = document.getElementById('chat-textarea');
-    const query = input.value.trim();
+    const els = getDOMElements();
+    const query = els.chatInput.value.trim();
     if (!query) return;
     
-    input.value = '';
-    input.style.height = '24px';
+    els.chatInput.value = '';
+    els.chatInput.style.height = '24px';
     executeChatRequest(query);
 }
 
 function selectSuggestion(query) {
-    document.getElementById('welcome-input').value = query;
-    submitWelcomeQuery();
+    const els = getDOMElements();
+    els.mainInput.value = query;
+    startChat();
 }
 
 function stopAIResponse() {
@@ -911,25 +800,20 @@ async function regenerateLastResponse() {
     const chat = conversations[activeChatId];
     if (!chat || chat.messages.length === 0) return;
     
-    // Remove last model message from history
     if (chat.messages[chat.messages.length - 1].role === 'model') {
         chat.messages.pop();
     }
     
-    // Clean feed visual of the last message container
-    const feed = document.getElementById('chat-feed');
-    const containers = feed.querySelectorAll('.msg-container');
+    const els = getDOMElements();
+    const containers = els.chatWindow.querySelectorAll('.w-full');
     if (containers.length > 0) {
         const lastContainer = containers[containers.length - 1];
-        if (lastContainer.classList.contains('model')) {
+        if (lastContainer.querySelector('.oracle-msg')) {
             lastContainer.remove();
         }
     }
     
-    // Re-run execution
     const lastUserQuery = chat.messages[chat.messages.length - 1].content;
-    
-    // Remove user query temporarily since executeChatRequest will add it again
     chat.messages.pop();
     saveActiveChatToStorage(chat.messages);
     
@@ -985,31 +869,16 @@ function exportChatMarkdown() {
 
 // --- UTILITY HANDLERS ---
 function toggleSidebarMobile() {
-    document.getElementById('sidebar').classList.toggle('open');
+    const els = getDOMElements();
+    if (els.sidebar) els.sidebar.classList.toggle('open');
 }
 
 function setupTextareaAutoResize() {
-    const textarea = document.getElementById('chat-textarea');
+    const textarea = document.getElementById('chat-input');
     if (textarea) {
         textarea.addEventListener('input', function() {
             this.style.height = '24px';
-            this.style.height = Math.min(this.scrollHeight, 180) + 'px';
-        });
-        
-        textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submitChatQuery();
-            }
-        });
-    }
-    
-    const welcomeInput = document.getElementById('welcome-input');
-    if (welcomeInput) {
-        welcomeInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                submitWelcomeQuery();
-            }
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
     }
 }
