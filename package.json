@@ -1,0 +1,19 @@
+{
+  "name": "oraculo-de-los-7",
+  "version": "1.0.0",
+  "description": "El Oráculo de los 7 Inversores Value - Pipeline agéntico Map-Reduce para evaluación de activos",
+  "main": "api/normalize.js",
+  "type": "module",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "value-investing",
+    "gemini",
+    "agents",
+    "pipeline",
+    "finance"
+  ],
+  "author": "Antigravity Agent",
+  "license": "MIT"
+}
