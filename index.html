@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>El Oráculo de los 7 (Value Investors)</title>
+    
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+    <!-- App Container -->
+    <div class="app-layout">
+        
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <span class="brand-o">7</span>
+                    <span class="brand-text">El Oráculo</span>
+                </div>
+                <button class="btn-icon" id="close-sidebar-mobile-btn" onclick="toggleSidebarMobile()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <button class="btn btn-primary btn-new-chat" onclick="startNewChat()">
+                <i class="fa-solid fa-plus"></i> Nueva consulta
+            </button>
+            
+            <div class="history-section">
+                <div class="history-title">Historial de análisis</div>
+                <div class="history-list" id="history-list">
+                    <!-- Dynamic chat history list loaded here -->
+                    <div class="history-empty">No hay consultas guardadas</div>
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-text btn-sidebar-action" onclick="openSettings()">
+                    <i class="fa-solid fa-sliders"></i> Ajustes del Oráculo
+                </button>
+                <button class="btn btn-text btn-sidebar-action text-danger" onclick="clearAllHistory()">
+                    <i class="fa-solid fa-trash-can"></i> Limpiar historial
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Main Content Area -->
+        <main class="main-content" id="main-content">
+            
+            <!-- Mobile Top Navbar -->
+            <header class="mobile-navbar">
+                <button class="btn-icon" onclick="toggleSidebarMobile()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="mobile-navbar-title">El Oráculo de los 7</div>
+                <button class="btn-icon" onclick="openSettings()">
+                    <i class="fa-solid fa-sliders"></i>
+                </button>
+            </header>
+            
+            <!-- Welcome View -->
+            <section class="view-welcome" id="view-welcome">
+                <div class="welcome-container">
+                    <div class="welcome-header">
+                        <div class="oracle-logo-badge animate-float">
+                            <i class="fa-solid fa-scale-balanced"></i>
+                        </div>
+                        <h1 class="welcome-title">
+                            El Oráculo
+                            <span class="welcome-subtitle">de los 7 Inversores Value</span>
+                        </h1>
+                        <p class="welcome-tagline">
+                            Delibera tu tesis de inversión con un consejo agéntico de 7 maestros del Value Investing (Buffett, Graham, Fisher, Klarman, Lynch, Marks y Thorndike).
+                        </p>
+                    </div>
+                    
+                    <!-- Search/Chat Bar -->
+                    <div class="welcome-search-box">
+                        <div class="search-input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass spark-icon"></i>
+                            <input type="text" id="welcome-input" placeholder="Ingresa ticker (ej: AAPL, BTC, YPF) y opcionalmente tu cartera..." autocomplete="off">
+                            <button class="search-submit-btn" onclick="submitWelcomeQuery()">
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Suggestions Grid -->
+                    <div class="suggestions-container">
+                        <h3 class="suggestions-header">Temas para deliberar</h3>
+                        <div class="suggestions-grid">
+                            <div class="suggestion-card" onclick="selectSuggestion('Analizá YPF a largo plazo con la óptica de Warren Buffett y Peter Lynch.')">
+                                <div class="card-icon"><i class="fa-solid fa-industry"></i></div>
+                                <div class="card-title">Analizar YPF</div>
+                                <p class="card-desc">Evaluación del gigante energético local en base a moat y reestructuraciones.</p>
+                            </div>
+                            <div class="suggestion-card" onclick="selectSuggestion('¿Qué diría Benjamin Graham y Graham & Dodd sobre la compra de Bitcoin (BTC) a precios actuales?')">
+                                <div class="card-icon"><i class="fa-brands fa-bitcoin"></i></div>
+                                <div class="card-title">Bitcoin (BTC)</div>
+                                <p class="card-desc">Análisis de la Regla Cero: ¿inversión defensiva o especulación pura?</p>
+                            </div>
+                            <div class="suggestion-card" onclick="selectSuggestion('Evaluá la acción de Apple (AAPL) para un perfil conservador a 5 años.')">
+                                <div class="card-icon"><i class="fa-brands fa-apple"></i></div>
+                                <div class="card-title">Apple (AAPL)</div>
+                                <p class="card-desc">Chequeo cualitativo de Fisher (Scuttlebutt) y cuantitativo de PEG.</p>
+                            </div>
+                            <div class="suggestion-card" onclick="selectSuggestion('¿Cómo estructuraría Seth Klarman y William Thorndike una cartera que actualmente tiene 100% de acciones sin efectivo?')">
+                                <div class="card-icon"><i class="fa-solid fa-wallet"></i></div>
+                                <div class="card-title">Estrategia de Cartera</div>
+                                <p class="card-desc">Porcentaje de liquidez (cash) y costo de oportunidad marginal del capital.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Chat View -->
+            <section class="view-chat" id="view-chat" style="display: none;">
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <div class="chat-status-badge">
+                            <span class="pulse-dot"></span>
+                            Sesión Activa
+                        </div>
+                        <h2 class="chat-header-title" id="chat-header-title">Nueva deliberación</h2>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="btn btn-text-sm" id="btn-open-audit" onclick="toggleAuditPanel()" style="display: none;">
+                            <i class="fa-solid fa-rectangle-list"></i> Auditoría de Lentes
+                        </button>
+                        <button class="btn btn-text-sm" onclick="exportChatMarkdown()">
+                            <i class="fa-solid fa-download"></i> Exportar (.md)
+                        </button>
+                        <button class="btn btn-icon-sm" onclick="startNewChat()" title="Nueva Consulta">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Chat Message Feed -->
+                <div class="chat-feed" id="chat-feed">
+                    <!-- Messages dynamically loaded here -->
+                </div>
+                
+                <!-- Pipeline Progress HUD (overlay loader when generating) -->
+                <div class="pipeline-hud" id="pipeline-hud" style="display: none;">
+                    <div class="hud-card">
+                        <h3 class="hud-title"><i class="fa-solid fa-gear fa-spin"></i> Corriendo Pipeline Agéntico</h3>
+                        <div class="hud-steps">
+                            <div class="hud-step" id="hud-step-0">
+                                <div class="step-icon"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+                                <div class="step-label">Capa 0: Normalizando Datos Financieros...</div>
+                            </div>
+                            <div class="hud-step" id="hud-step-1">
+                                <div class="step-icon"><i class="fa-solid fa-clock"></i></div>
+                                <div class="step-label">Fan-out: Ejecutando 7 Subagentes en paralelo...</div>
+                            </div>
+                            <div class="hud-step-subgrid" id="hud-subagents-grid">
+                                <span class="badge-subagent" id="badge-fisher">Fisher</span>
+                                <span class="badge-subagent" id="badge-graham">Graham</span>
+                                <span class="badge-subagent" id="badge-dodd">Graham & Dodd</span>
+                                <span class="badge-subagent" id="badge-klarman">Klarman</span>
+                                <span class="badge-subagent" id="badge-lynch">Lynch</span>
+                                <span class="badge-subagent" id="badge-marks">Marks</span>
+                                <span class="badge-subagent" id="badge-thorndike">Thorndike</span>
+                            </div>
+                            <div class="hud-step" id="hud-step-2">
+                                <div class="step-icon"><i class="fa-solid fa-clock"></i></div>
+                                <div class="step-label">Fan-in: Generando Síntesis y Convergencias...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat Input Floating Panel -->
+                <div class="chat-input-container">
+                    <div class="chat-input-panel">
+                        <textarea id="chat-textarea" placeholder="Pregúntale al Consejo de Inversores..." rows="1"></textarea>
+                        <div class="chat-input-actions">
+                            <button class="action-btn btn-send" id="btn-send" onclick="submitChatQuery()">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                            <button class="action-btn btn-stop" id="btn-stop" onclick="stopAIResponse()" style="display: none;">
+                                <i class="fa-solid fa-stop"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chat-footer-note">
+                        El Oráculo corre un análisis Map-Reduce. El veredicto final requiere auditoría de los 7 balances.
+                    </div>
+                </div>
+                
+                <!-- Floating Scroll to Bottom Button -->
+                <button class="btn-scroll-bottom" id="btn-scroll-bottom" onclick="scrollToBottom()">
+                    <i class="fa-solid fa-arrow-down"></i>
+                </button>
+            </section>
+            
+            <!-- Audit Sidebar Panel (Drawer on the right side) -->
+            <aside class="audit-panel" id="audit-panel" style="display: none;">
+                <div class="audit-header">
+                    <h3 class="audit-title"><i class="fa-solid fa-clipboard-check"></i> Auditoría de Lentes</h3>
+                    <button class="btn-icon" onclick="toggleAuditPanel()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="audit-body" id="audit-body">
+                    <!-- Dynamic details for Capa 0 and each subagent -->
+                    <div class="audit-section">
+                        <h4 class="audit-section-title">Capa 0 — Estado Normalizado</h4>
+                        <pre id="audit-capa0-json" class="json-viewer">{}</pre>
+                    </div>
+                    
+                    <div class="audit-section">
+                        <h4 class="audit-section-title">Veredictos Individuales (JSON)</h4>
+                        <div class="accordion-container" id="audit-accordion">
+                            <!-- Accordion items loaded dynamically here -->
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            
+        </main>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 class="modal-title"><i class="fa-solid fa-sliders"></i> Ajustes del Oráculo de los 7</h2>
+                <button class="btn-icon" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="settings-api-key">Gemini API Key</label>
+                    <div class="input-password-wrapper">
+                        <input type="password" id="settings-api-key" placeholder="Pega tu GEMINI_API_KEY aquí...">
+                        <button class="btn-toggle-password" onclick="togglePasswordVisibility('settings-api-key')">
+                            <i class="fa-solid fa-eye" id="settings-api-key-eye"></i>
+                        </button>
+                    </div>
+                    <p class="form-help">Clave necesaria para correr el análisis Map-Reduce en paralelo. Consíguela en Google AI Studio.</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="settings-model">Modelo de Lenguaje (Subagentes)</label>
+                    <select id="settings-model">
+                        <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Rápido y económico)</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (Precisión de razonamiento)</option>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Versión anterior)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="settings-theme">Esquema de Color</label>
+                    <select id="settings-theme" onchange="changeTheme(this.value)">
+                        <option value="theme-dark">Oscuro Profundo (Sleek Dark)</option>
+                        <option value="theme-light">Claro Elegante (Clean Light)</option>
+                        <option value="theme-cyber">Cyberpunk (Valores de Neón)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="settings-system-prompt">Orquestador Base (System Prompt)</label>
+                    <textarea id="settings-system-prompt" rows="5" class="system-prompt-textarea"></textarea>
+                    <p class="form-help">Procedimiento base del consejo de inversores.</p>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSettings()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveSettings()">Guardar Ajustes</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Script Execution -->
+    <script src="app.js"></script>
+</body>
+</html>
